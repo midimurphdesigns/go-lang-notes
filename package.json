@@ -10,7 +10,7 @@
     "frontend": "cd frontend && npm start",
     "build": "cd frontend && npm run build",
     "install-deps": "npm install && cd frontend && npm install",
-    "backend-build": "cd backend && go build -o gonotes.exe main.go",
+    "backend-build": "cd backend && go build -o gonotes.exe main.go server.go",
     "start": "npm run dev",
     "cli": "cd backend && go run main.go server.go",
     "web": "cd backend && go run main.go server.go -web"

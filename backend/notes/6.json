@@ -1,0 +1,13 @@
+{
+  "id": 6,
+  "title": "New Note",
+  "content": "Note content",
+  "tags": [
+    "tag1",
+    "tag2"
+  ],
+  "created_at": "2025-07-25T18:17:41.2655582-07:00",
+  "updated_at": "2025-07-25T18:17:41.2655582-07:00",
+  "is_archived": false,
+  "is_favorite": false
+}

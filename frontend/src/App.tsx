@@ -24,6 +24,7 @@ function App() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorTimeout, setErrorTimeout] = useState<NodeJS.Timeout | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newNote, setNewNote] = useState<CreateNoteRequest>({
     title: "",
@@ -31,6 +32,7 @@ function App() {
     tags: [],
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const [cliCommand, setCliCommand] = useState("");
   const [cliOutput, setCliOutput] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState<Page>("notes");
@@ -47,16 +49,45 @@ function App() {
   // Toast functions
   const addToast = (toast: Omit<ToastMessage, "id">) => {
     const id = Date.now().toString();
-    setToasts((prev) => [...prev, { ...toast, id }]);
+    const toastWithDefaults = {
+      duration: 5000, // Default 5 seconds
+      ...toast,
+      id,
+    };
+    setToasts((prev) => [...prev, toastWithDefaults]);
+  };
+
+  const setErrorWithTimeout = (
+    errorMessage: string,
+    duration: number = 5000
+  ) => {
+    // Clear any existing timeout
+    if (errorTimeout) {
+      clearTimeout(errorTimeout);
+    }
+
+    // Set the error
+    setError(errorMessage);
+
+    // Set up new timeout
+    const timeout = setTimeout(() => {
+      setError(null);
+      setErrorTimeout(null);
+    }, duration);
+
+    setErrorTimeout(timeout);
   };
 
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   };
 
+  // Initial fetch on component mount
   useEffect(() => {
     fetchNotes();
+  }, []);
 
+  useEffect(() => {
     // Add mouse tracking for interactive effects
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({ x: e.clientX, y: e.clientY });
@@ -130,10 +161,28 @@ function App() {
       clearInterval(particleInterval);
       clearInterval(orbInterval);
       clearInterval(cardInterval);
+
+      // Clear error timeout on cleanup
+      if (errorTimeout) {
+        clearTimeout(errorTimeout);
+      }
     };
   }, [mousePosition]);
 
-  const fetchNotes = async () => {
+  const fetchNotes = async (clearErrors = true) => {
+    console.log(
+      "fetchNotes called - clearErrors:",
+      clearErrors,
+      "isSearching:",
+      isSearching
+    );
+
+    // Don't fetch all notes if we're currently searching
+    if (isSearching && !clearErrors) {
+      console.log("Skipping fetchNotes - currently in search mode");
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch(`${API_BASE}/notes`);
@@ -142,9 +191,13 @@ function App() {
       }
       const data = await response.json();
       setNotes(data);
-      setError(null);
+      if (clearErrors) {
+        setError(null);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      const errorMessage =
+        err instanceof Error ? err.message : "An error occurred";
+      setErrorWithTimeout(errorMessage, 5000);
     } finally {
       setLoading(false);
     }
@@ -187,7 +240,7 @@ function App() {
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to create note";
-      setError(errorMessage);
+      setErrorWithTimeout(errorMessage, 5000);
 
       // Show error toast
       addToast({
@@ -221,7 +274,7 @@ function App() {
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to delete note";
-      setError(errorMessage);
+      setErrorWithTimeout(errorMessage, 5000);
 
       // Show error toast
       addToast({
@@ -234,26 +287,64 @@ function App() {
   };
 
   const searchNotes = async () => {
-    if (!searchQuery.trim()) {
-      await fetchNotes();
-      return;
-    }
-
     try {
       setLoading(true);
-      const response = await fetch(
-        `${API_BASE}/notes/search?q=${encodeURIComponent(searchQuery)}`
-      );
-      if (!response.ok) {
-        throw new Error("Failed to search notes");
-      }
-      const data = await response.json();
-      setNotes(data);
       setError(null);
+
+      // Build search URL with parameters
+      const searchParams = new URLSearchParams();
+
+      if (searchQuery.trim()) {
+        searchParams.append("q", searchQuery.trim());
+        setIsSearching(true);
+      } else {
+        // If no search query, clear search state and fetch all notes
+        setIsSearching(false);
+        await fetchNotes();
+        return;
+      }
+
+      // You can add search type parameter here if needed
+      // searchParams.append('type', 'all'); // all, title, content, tags
+
+      const searchUrl = `${API_BASE}/search?${searchParams.toString()}`;
+      console.log("=== FRONTEND SEARCH DEBUG ===");
+      console.log("API_BASE:", API_BASE);
+      console.log("searchQuery:", searchQuery);
+      console.log("searchParams:", searchParams.toString());
+      console.log("Final Search URL:", searchUrl);
+      console.log("=== END FRONTEND DEBUG ===");
+
+      const response = await fetch(searchUrl);
+      console.log("Search response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log("Search error response:", errorText);
+        throw new Error(
+          `Search failed: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+      console.log("Search results:", data);
+
+      // Handle new response format with metadata
+      if (data.results) {
+        setNotes(data.results);
+        console.log(
+          `Found ${data.count} results out of ${data.total} total notes`
+        );
+        console.log("Search state: isSearching =", true);
+      } else {
+        // Fallback for old format
+        setNotes(data);
+      }
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to search notes";
-      setError(errorMessage);
+      console.log("Search error:", errorMessage);
+      setErrorWithTimeout(errorMessage, 5000);
     } finally {
       setLoading(false);
     }
@@ -325,25 +416,96 @@ function App() {
                 .filter((tag) => tag.length > 0);
             }
 
+            // Ensure we have valid title and content
+            if (title.trim() === "") {
+              throw new Error("Create command requires a non-empty title");
+            }
+            if (content.trim() === "") {
+              throw new Error("Create command requires non-empty content");
+            }
+
             args = [title, content, ...tags];
+          } else {
+            throw new Error(
+              "Create command requires --title and --content flags"
+            );
           }
         } else if (actualCommand === "view" || actualCommand === "delete") {
           const idIndex = args.indexOf("--id");
           if (idIndex !== -1) {
-            args = [args[idIndex + 1] || ""];
+            // Find the full quoted ID by looking for the next flag or end of args
+            let idEndIndex = args.length;
+            for (let i = idIndex + 1; i < args.length; i++) {
+              if (args[i].startsWith("--")) {
+                idEndIndex = i;
+                break;
+              }
+            }
+            const idParts = args.slice(idIndex + 1, idEndIndex);
+            const id = idParts.join(" ").replace(/['"]/g, "");
+
+            // Ensure we have a valid ID
+            if (id.trim() === "" || isNaN(Number(id))) {
+              throw new Error(
+                `${actualCommand} command requires a valid numeric ID`
+              );
+            }
+
+            args = [id];
+          } else {
+            throw new Error(`${actualCommand} command requires --id flag`);
           }
         } else if (actualCommand === "search") {
           const queryIndex = args.indexOf("--query");
           if (queryIndex !== -1) {
-            args = [args[queryIndex + 1]?.replace(/['"]/g, "") || ""];
+            // Find the full quoted query by looking for the next flag or end of args
+            let queryEndIndex = args.length;
+            for (let i = queryIndex + 1; i < args.length; i++) {
+              if (args[i].startsWith("--")) {
+                queryEndIndex = i;
+                break;
+              }
+            }
+            const queryParts = args.slice(queryIndex + 1, queryEndIndex);
+            const query = queryParts.join(" ").replace(/['"]/g, "");
+
+            // Ensure we have a valid query
+            if (query.trim() === "") {
+              throw new Error("Search query cannot be empty");
+            }
+
+            args = [query];
+          } else {
+            throw new Error("Search command requires --query flag");
           }
         } else if (actualCommand === "tag") {
           const idIndex = args.indexOf("--id");
           const tagIndex = args.indexOf("--tag");
           if (idIndex !== -1 && tagIndex !== -1) {
             const operation = args[0]; // add or remove
-            const id = args[idIndex + 1] || "";
-            const tag = args[tagIndex + 1]?.replace(/['"]/g, "") || "";
+
+            // Find the full quoted ID
+            let idEndIndex = args.length;
+            for (let i = idIndex + 1; i < args.length; i++) {
+              if (args[i].startsWith("--")) {
+                idEndIndex = i;
+                break;
+              }
+            }
+            const idParts = args.slice(idIndex + 1, idEndIndex);
+            const id = idParts.join(" ").replace(/['"]/g, "");
+
+            // Find the full quoted tag
+            let tagEndIndex = args.length;
+            for (let i = tagIndex + 1; i < args.length; i++) {
+              if (args[i].startsWith("--")) {
+                tagEndIndex = i;
+                break;
+              }
+            }
+            const tagParts = args.slice(tagIndex + 1, tagEndIndex);
+            const tag = tagParts.join(" ").replace(/['"]/g, "");
+
             args = [operation, id, tag];
           }
         }
@@ -352,6 +514,13 @@ function App() {
         actualCommand = parts[0];
         args = parts.slice(1);
       }
+
+      // Debug logging
+      console.log("CLI Command Debug:", {
+        command: actualCommand,
+        args,
+        originalCommand: command,
+      });
 
       const response = await fetch(`${API_BASE}/cli/execute`, {
         method: "POST",
@@ -362,7 +531,10 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to execute CLI command");
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage =
+          errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -394,17 +566,13 @@ function App() {
       const errorOutput = `PS C:\\GoNotes> ${command}\nError: ${errorMessage}`;
       setCliOutput((prev) => [...prev, errorOutput]);
 
-      // Only show error toast for CRUD operations
-      const parts = command.trim().split(" ");
-      const actualCommand = parts[0] === "gonotes" ? parts[1] : parts[0];
-      if (["create", "delete", "update"].includes(actualCommand)) {
-        addToast({
-          type: "error",
-          title: "Operation Failed",
-          message: errorMessage,
-          duration: 4000,
-        });
-      }
+      // Show error toast for all command errors
+      addToast({
+        type: "error",
+        title: "CLI Command Failed",
+        message: errorMessage,
+        duration: 5000,
+      });
     }
   };
 
@@ -454,23 +622,41 @@ function App() {
 
       <div className="controls">
         <div className="search-section">
-          <input
-            type="text"
-            placeholder="Search notes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && searchNotes()}
-          />
-          <button onClick={searchNotes}>Search</button>
-          {searchQuery && (
-            <button
-              onClick={() => {
-                setSearchQuery("");
-                fetchNotes();
-              }}
-            >
-              Clear
-            </button>
+          <div className="search-input-group">
+            <input
+              type="text"
+              placeholder="Search notes by title, content, or tags..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && searchNotes()}
+              className="search-input"
+            />
+            <div className="search-buttons">
+              <button
+                onClick={searchNotes}
+                className="search-button"
+                disabled={!searchQuery.trim()}
+              >
+                🔍 {isSearching ? "Search Again" : "Search"}
+              </button>
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setIsSearching(false);
+                    fetchNotes();
+                  }}
+                  className="clear-button"
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
+          {isSearching && searchQuery && (
+            <div className="search-info">
+              <small>Searching for: "{searchQuery}"</small>
+            </div>
           )}
         </div>
 
@@ -550,7 +736,11 @@ function App() {
 
       {notes.length === 0 && !loading && (
         <div className="empty-state">
-          <p>No notes found. Create your first note!</p>
+          <p>
+            {isSearching
+              ? `No notes found matching "${searchQuery}". Try a different search term.`
+              : "No notes found. Create your first note!"}
+          </p>
         </div>
       )}
     </div>

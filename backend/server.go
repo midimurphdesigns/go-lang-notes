@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -61,29 +60,41 @@ func NewServer(notesDir string) (*Server, error) {
 }
 
 func (s *Server) setupRoutes() {
+	fmt.Println("=== SETTING UP ROUTES ===")
+
 	// Add CORS middleware
 	s.router.Use(s.corsMiddleware)
 
 	// API routes
 	api := s.router.PathPrefix("/api").Subrouter()
+	fmt.Println("✓ Created /api subrouter")
 
 	// Notes CRUD operations
 	api.HandleFunc("/notes", s.getNotes).Methods("GET")
 	api.HandleFunc("/notes", s.createNote).Methods("POST")
-	api.HandleFunc("/notes/{id}", s.getNote).Methods("GET")
-	api.HandleFunc("/notes/{id}", s.updateNote).Methods("PUT")
-	api.HandleFunc("/notes/{id}", s.deleteNote).Methods("DELETE")
+	fmt.Println("✓ Registered /api/notes routes")
+
+	// Individual note operations
+	api.HandleFunc("/notes/{id:[0-9]+}", s.getNote).Methods("GET")
+	api.HandleFunc("/notes/{id:[0-9]+}", s.updateNote).Methods("PUT")
+	api.HandleFunc("/notes/{id:[0-9]+}", s.deleteNote).Methods("DELETE")
+	fmt.Println("✓ Registered /api/notes/{id} routes")
 
 	// Search and stats
-	api.HandleFunc("/notes/search", s.searchNotes).Methods("GET")
+	api.HandleFunc("/search", s.searchNotes).Methods("GET")
 	api.HandleFunc("/stats", s.getStats).Methods("GET")
+	fmt.Println("✓ Registered /api/search and /api/stats routes")
 
 	// CLI console API
 	api.HandleFunc("/cli/execute", s.executeCLICommand).Methods("POST")
 	api.HandleFunc("/cli/help", s.getCLIHelp).Methods("GET")
+	fmt.Println("✓ Registered CLI routes")
 
 	// Serve static files (React app) with CLI console injection
 	s.router.PathPrefix("/").Handler(s.cliConsoleHandler(http.FileServer(http.Dir("../frontend/build"))))
+	fmt.Println("✓ Registered static file handler")
+
+	fmt.Println("=== ROUTES SETUP COMPLETE ===")
 }
 
 func (s *Server) getNotes(w http.ResponseWriter, r *http.Request) {
@@ -135,9 +146,16 @@ func (s *Server) createNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getNote(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("=== GET NOTE HANDLER CALLED ===\n")
+	fmt.Printf("Request URL: %s\n", r.URL.String())
+	fmt.Printf("Request Method: %s\n", r.Method)
+
 	vars := mux.Vars(r)
+	fmt.Printf("URL vars: %+v\n", vars)
+
 	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
+		fmt.Printf("Error parsing ID '%s': %v\n", vars["id"], err)
 		s.sendError(w, "Invalid note ID", http.StatusBadRequest)
 		return
 	}
@@ -209,16 +227,91 @@ func (s *Server) deleteNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) searchNotes(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("q")
+	fmt.Println("=== SEARCH NOTES HANDLER CALLED ===")
+	fmt.Printf("Request URL: %s\n", r.URL.String())
+	fmt.Printf("Request Method: %s\n", r.Method)
+	fmt.Printf("Request Path: %s\n", r.URL.Path)
+	fmt.Printf("Request RawQuery: %s\n", r.URL.RawQuery)
+
+	// Get search parameters
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	searchType := strings.TrimSpace(r.URL.Query().Get("type")) // "all", "title", "content", "tags"
+
+	fmt.Printf("Search query: '%s'\n", query)
+	fmt.Printf("Search type: '%s'\n", searchType)
+
+	// Default to "all" if not specified
+	if searchType == "" {
+		searchType = "all"
+	}
+
+	// Get all notes first
+	allNotes := s.storage.GetActiveNotes()
+
+	// If no query, return all notes
 	if query == "" {
-		s.sendError(w, "Search query is required", http.StatusBadRequest)
+		response := make([]NoteResponse, len(allNotes))
+		for i, note := range allNotes {
+			response[i] = NoteResponse{
+				ID:        note.ID,
+				Title:     note.Title,
+				Content:   note.Content,
+				Tags:      note.Tags,
+				CreatedAt: note.CreatedAt,
+				UpdatedAt: note.UpdatedAt,
+			}
+		}
+		s.sendJSON(w, response)
 		return
 	}
 
-	notes := s.storage.SearchNotes(query)
+	// Filter notes based on search type and query
+	var filteredNotes []*note.Note
+	queryLower := strings.ToLower(query)
 
-	response := make([]NoteResponse, len(notes))
-	for i, note := range notes {
+	fmt.Printf("Searching for query: '%s' (lowercase: '%s')\n", query, queryLower)
+	fmt.Printf("Search type: '%s'\n", searchType)
+	fmt.Printf("Total notes to search: %d\n", len(allNotes))
+
+	for i, note := range allNotes {
+		var matches bool
+		fmt.Printf("Checking note %d: ID=%d, Title='%s', Tags=%v\n", i+1, note.ID, note.Title, note.Tags)
+		fmt.Printf("  About to enter switch statement with searchType: '%s'\n", searchType)
+
+		// Simplified search logic - always search in tags
+		titleMatch := strings.Contains(strings.ToLower(note.Title), queryLower)
+		contentMatch := strings.Contains(strings.ToLower(note.Content), queryLower)
+		tagMatch := false
+
+		fmt.Printf("  Checking tags: %v\n", note.Tags)
+		for _, tag := range note.Tags {
+			tagLower := strings.ToLower(tag)
+			fmt.Printf("    Comparing tag '%s' (lowercase: '%s') with query '%s'\n", tag, tagLower, queryLower)
+			if strings.Contains(tagLower, queryLower) {
+				tagMatch = true
+				fmt.Printf("    ✓ Tag match found: '%s' contains '%s'\n", tagLower, queryLower)
+				break
+			} else {
+				fmt.Printf("    ✗ No match: '%s' does not contain '%s'\n", tagLower, queryLower)
+			}
+		}
+
+		matches = titleMatch || contentMatch || tagMatch
+		fmt.Printf("  Search results: title=%v, content=%v, tags=%v, final=%v\n", titleMatch, contentMatch, tagMatch, matches)
+
+		if matches {
+			filteredNotes = append(filteredNotes, note)
+			fmt.Printf("  ✓ Note %d matches - adding to results\n", note.ID)
+		} else {
+			fmt.Printf("  ✗ Note %d does not match\n", note.ID)
+		}
+	}
+
+	fmt.Printf("Total matching notes found: %d\n", len(filteredNotes))
+
+	// Convert to response format
+	response := make([]NoteResponse, len(filteredNotes))
+	for i, note := range filteredNotes {
 		response[i] = NoteResponse{
 			ID:        note.ID,
 			Title:     note.Title,
@@ -229,7 +322,16 @@ func (s *Server) searchNotes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.sendJSON(w, response)
+	// Add search metadata
+	searchResponse := map[string]interface{}{
+		"results": response,
+		"query":   query,
+		"type":    searchType,
+		"count":   len(response),
+		"total":   len(allNotes),
+	}
+
+	s.sendJSON(w, searchResponse)
 }
 
 func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
@@ -510,6 +612,20 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *Server) Start(port string) error {
-	log.Printf("Server starting on port %s", port)
+	fmt.Printf("Server starting on port %s\n", port)
+
+	// Add a catch-all handler for debugging
+	s.router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("=== 404 NOT FOUND ===")
+		fmt.Printf("Request URL: %s\n", r.URL.String())
+		fmt.Printf("Request Method: %s\n", r.Method)
+		fmt.Printf("Request Path: %s\n", r.URL.Path)
+		fmt.Printf("Request RawQuery: %s\n", r.URL.RawQuery)
+		fmt.Printf("User Agent: %s\n", r.UserAgent())
+		fmt.Printf("=== END 404 DEBUG ===\n")
+
+		http.NotFound(w, r)
+	})
+
 	return http.ListenAndServe(":"+port, s.router)
 }
