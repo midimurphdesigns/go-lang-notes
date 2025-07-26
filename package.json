@@ -4,13 +4,16 @@
   "description": "Full-stack note-taking application with Go backend and React frontend",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
-    "backend": "cd backend && go run main.go",
+    "dev": "concurrently \"npm run backend-web\" \"npm run frontend\"",
+    "backend": "cd backend && go run main.go server.go",
+    "backend-web": "cd backend && go run main.go server.go -web",
     "frontend": "cd frontend && npm start",
     "build": "cd frontend && npm run build",
     "install-deps": "npm install && cd frontend && npm install",
     "backend-build": "cd backend && go build -o gonotes.exe main.go",
-    "start": "npm run dev"
+    "start": "npm run dev",
+    "cli": "cd backend && go run main.go server.go",
+    "web": "cd backend && go run main.go server.go -web"
   },
   "keywords": [
     "go",
