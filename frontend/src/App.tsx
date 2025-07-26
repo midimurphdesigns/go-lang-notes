@@ -250,28 +250,10 @@ function App() {
       const data = await response.json();
       setNotes(data);
       setError(null);
-
-      // Show search toast
-      addToast({
-        type: "info",
-        title: "Search Complete",
-        message: `Found ${data.length} note${
-          data.length !== 1 ? "s" : ""
-        } for "${searchQuery}"`,
-        duration: 3000,
-      });
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to search notes";
       setError(errorMessage);
-
-      // Show error toast
-      addToast({
-        type: "error",
-        title: "Search Failed",
-        message: errorMessage,
-        duration: 4000,
-      });
     } finally {
       setLoading(false);
     }
@@ -287,12 +269,96 @@ function App() {
 
   const executeCLICommand = async (command: string) => {
     try {
+      // Parse the command to extract the actual command and arguments
+      const parts = command.trim().split(" ");
+      let actualCommand = "";
+      let args: string[] = [];
+
+      if (parts[0] === "gonotes" && parts.length > 1) {
+        actualCommand = parts[1];
+        args = parts.slice(2);
+
+        // Parse arguments for commands with flags
+        if (actualCommand === "create") {
+          const titleIndex = args.indexOf("--title");
+          const contentIndex = args.indexOf("--content");
+          const tagsIndex = args.indexOf("--tags");
+
+          if (titleIndex !== -1 && contentIndex !== -1) {
+            // Find the full quoted title by looking for the next flag or end of args
+            let titleEndIndex = args.length;
+            for (let i = titleIndex + 1; i < args.length; i++) {
+              if (args[i].startsWith("--")) {
+                titleEndIndex = i;
+                break;
+              }
+            }
+            const titleParts = args.slice(titleIndex + 1, titleEndIndex);
+            const title = titleParts.join(" ").replace(/['"]/g, "");
+
+            // Find the full quoted content by looking for the next flag or end of args
+            let contentEndIndex = args.length;
+            for (let i = contentIndex + 1; i < args.length; i++) {
+              if (args[i].startsWith("--")) {
+                contentEndIndex = i;
+                break;
+              }
+            }
+            const contentParts = args.slice(contentIndex + 1, contentEndIndex);
+            const content = contentParts.join(" ").replace(/['"]/g, "");
+
+            // Handle tags
+            let tags: string[] = [];
+            if (tagsIndex !== -1) {
+              let tagsEndIndex = args.length;
+              for (let i = tagsIndex + 1; i < args.length; i++) {
+                if (args[i].startsWith("--")) {
+                  tagsEndIndex = i;
+                  break;
+                }
+              }
+              const tagsParts = args.slice(tagsIndex + 1, tagsEndIndex);
+              const tagsString = tagsParts.join(" ").replace(/['"]/g, "");
+              tags = tagsString
+                .split(",")
+                .map((tag) => tag.trim())
+                .filter((tag) => tag.length > 0);
+            }
+
+            args = [title, content, ...tags];
+          }
+        } else if (actualCommand === "view" || actualCommand === "delete") {
+          const idIndex = args.indexOf("--id");
+          if (idIndex !== -1) {
+            args = [args[idIndex + 1] || ""];
+          }
+        } else if (actualCommand === "search") {
+          const queryIndex = args.indexOf("--query");
+          if (queryIndex !== -1) {
+            args = [args[queryIndex + 1]?.replace(/['"]/g, "") || ""];
+          }
+        } else if (actualCommand === "tag") {
+          const idIndex = args.indexOf("--id");
+          const tagIndex = args.indexOf("--tag");
+          if (idIndex !== -1 && tagIndex !== -1) {
+            const operation = args[0]; // add or remove
+            const id = args[idIndex + 1] || "";
+            const tag = args[tagIndex + 1]?.replace(/['"]/g, "") || "";
+            args = [operation, id, tag];
+          }
+        }
+      } else {
+        // Fallback for old format
+        actualCommand = parts[0];
+        args = parts.slice(1);
+      }
+
       const response = await fetch(`${API_BASE}/cli/execute`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ command, args: [] }),
+        body: JSON.stringify({ command: actualCommand, args }),
       });
 
       if (!response.ok) {
@@ -300,37 +366,45 @@ function App() {
       }
 
       const result = await response.json();
-      const output = `$ ${command}\n${JSON.stringify(result.result, null, 2)}`;
+      const output = `PS C:\\GoNotes> ${command}\n${JSON.stringify(
+        result.result,
+        null,
+        2
+      )}`;
       setCliOutput((prev) => [...prev, output]);
 
       // Refresh notes if the command might have changed them
       if (
-        ["list", "create", "delete", "search", "stats"].includes(
-          command.split(" ")[0]
-        )
+        ["list", "create", "delete", "search", "stats"].includes(actualCommand)
       ) {
         await fetchNotes();
       }
 
-      // Show CLI success toast
-      addToast({
-        type: "success",
-        title: "Command Executed",
-        message: `Successfully executed: ${command}`,
-        duration: 3000,
-      });
+      // Only show toast for CRUD operations (create, update, delete)
+      if (["create", "delete", "update"].includes(actualCommand)) {
+        addToast({
+          type: "success",
+          title: "Note Modified",
+          message: `Successfully ${actualCommand}d note via CLI`,
+          duration: 3000,
+        });
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      const errorOutput = `$ ${command}\nError: ${errorMessage}`;
+      const errorOutput = `PS C:\\GoNotes> ${command}\nError: ${errorMessage}`;
       setCliOutput((prev) => [...prev, errorOutput]);
 
-      // Show CLI error toast
-      addToast({
-        type: "error",
-        title: "Command Failed",
-        message: errorMessage,
-        duration: 4000,
-      });
+      // Only show error toast for CRUD operations
+      const parts = command.trim().split(" ");
+      const actualCommand = parts[0] === "gonotes" ? parts[1] : parts[0];
+      if (["create", "delete", "update"].includes(actualCommand)) {
+        addToast({
+          type: "error",
+          title: "Operation Failed",
+          message: errorMessage,
+          duration: 4000,
+        });
+      }
     }
   };
 
@@ -502,27 +576,170 @@ function App() {
           ))}
         </div>
         <form onSubmit={handleCLISubmit} className="cli-input-form">
+          <div className="cli-prompt">
+            <span className="prompt-symbol">PS</span>
+            <span className="prompt-path">C:\GoNotes{">"}</span>
+          </div>
           <input
             type="text"
             value={cliCommand}
             onChange={(e) => setCliCommand(e.target.value)}
-            placeholder="Enter CLI command (e.g., list, create 'Title' 'Content', stats)..."
+            placeholder="gonotes list | gonotes create --title 'Title' --content 'Content' | gonotes search --query 'term'"
             className="cli-input"
           />
           <button type="submit" className="cli-submit">
             Execute
           </button>
         </form>
-        <div className="cli-quick-commands">
-          <button onClick={() => executeCLICommand("list")}>List Notes</button>
-          <button onClick={() => executeCLICommand("stats")}>Stats</button>
-          <button
-            onClick={() =>
-              executeCLICommand('create "Quick Note" "Created via CLI" "cli"')
-            }
-          >
-            Quick Create
-          </button>
+        <div className="cli-commands-section">
+          <h4>📋 Available CLI Commands</h4>
+          <div className="commands-grid">
+            <div className="command-category">
+              <h5>📝 Note Operations</h5>
+              <div className="command-buttons">
+                <button
+                  className="command-btn"
+                  onClick={() => setCliCommand("gonotes list")}
+                  title="List all notes"
+                >
+                  <span className="command-icon">📋</span>
+                  <span className="command-name">gonotes list</span>
+                  <span className="command-desc">List all notes</span>
+                </button>
+
+                <button
+                  className="command-btn"
+                  onClick={() =>
+                    setCliCommand(
+                      "gonotes create --title 'New Note' --content 'Note content' --tags 'tag1,tag2'"
+                    )
+                  }
+                  title="Create a new note with title, content, and optional tags"
+                >
+                  <span className="command-icon">➕</span>
+                  <span className="command-name">gonotes create</span>
+                  <span className="command-desc">Create new note</span>
+                </button>
+
+                <button
+                  className="command-btn"
+                  onClick={() => setCliCommand("gonotes view --id 1")}
+                  title="View a specific note by ID"
+                >
+                  <span className="command-icon">👁️</span>
+                  <span className="command-name">gonotes view</span>
+                  <span className="command-desc">View note by ID</span>
+                </button>
+
+                <button
+                  className="command-btn danger"
+                  onClick={() => setCliCommand("gonotes delete --id 1")}
+                  title="Delete a note by ID"
+                >
+                  <span className="command-icon">🗑️</span>
+                  <span className="command-name">gonotes delete</span>
+                  <span className="command-desc">Delete note by ID</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="command-category">
+              <h5>🔍 Search & Stats</h5>
+              <div className="command-buttons">
+                <button
+                  className="command-btn"
+                  onClick={() =>
+                    setCliCommand("gonotes search --query 'important'")
+                  }
+                  title="Search notes by query"
+                >
+                  <span className="command-icon">🔍</span>
+                  <span className="command-name">gonotes search</span>
+                  <span className="command-desc">Search notes</span>
+                </button>
+
+                <button
+                  className="command-btn"
+                  onClick={() => setCliCommand("gonotes stats")}
+                  title="Get note statistics"
+                >
+                  <span className="command-icon">📊</span>
+                  <span className="command-name">gonotes stats</span>
+                  <span className="command-desc">Get statistics</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="command-category">
+              <h5>🏷️ Tag Operations</h5>
+              <div className="command-buttons">
+                <button
+                  className="command-btn"
+                  onClick={() =>
+                    setCliCommand("gonotes tag add --id 1 --tag 'important'")
+                  }
+                  title="Add a tag to a note"
+                >
+                  <span className="command-icon">➕</span>
+                  <span className="command-name">gonotes tag add</span>
+                  <span className="command-desc">Add tag to note</span>
+                </button>
+
+                <button
+                  className="command-btn"
+                  onClick={() =>
+                    setCliCommand("gonotes tag remove --id 1 --tag 'important'")
+                  }
+                  title="Remove a tag from a note"
+                >
+                  <span className="command-icon">➖</span>
+                  <span className="command-name">gonotes tag remove</span>
+                  <span className="command-desc">Remove tag from note</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="command-category">
+              <h5>⚡ Quick Actions</h5>
+              <div className="command-buttons">
+                <button
+                  className="command-btn primary"
+                  onClick={() => {
+                    setCliCommand("gonotes list");
+                    setTimeout(() => {
+                      const form = document.querySelector(
+                        ".cli-input-form"
+                      ) as HTMLFormElement;
+                      if (form) form.requestSubmit();
+                    }, 100);
+                  }}
+                  title="List all notes and execute immediately"
+                >
+                  <span className="command-icon">⚡</span>
+                  <span className="command-name">List & Execute</span>
+                  <span className="command-desc">Quick list notes</span>
+                </button>
+
+                <button
+                  className="command-btn primary"
+                  onClick={() => {
+                    setCliCommand("gonotes stats");
+                    setTimeout(() => {
+                      const form = document.querySelector(
+                        ".cli-input-form"
+                      ) as HTMLFormElement;
+                      if (form) form.requestSubmit();
+                    }, 100);
+                  }}
+                  title="Get stats and execute immediately"
+                >
+                  <span className="command-icon">⚡</span>
+                  <span className="command-name">Stats & Execute</span>
+                  <span className="command-desc">Quick get stats</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

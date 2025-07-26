@@ -643,9 +643,22 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
   color: #e2e8f0;
-  padding: 0.5rem;
-  border-radius: 6px;
+  padding: 1rem;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
+  border-left: 3px solid #667eea;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.cli-line:first-child {
+  border-left-color: #48bb78;
+}
+
+.cli-line:contains("Error") {
+  border-left-color: #f56565;
 }
 
 .cli-input-form {
@@ -654,6 +667,30 @@ body {
   background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
   border-top: 1px solid #4a5568;
   gap: 1rem;
+  align-items: center;
+}
+
+.cli-prompt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.prompt-symbol {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.prompt-path {
+  color: #48bb78;
+  font-size: 0.9rem;
 }
 
 .cli-input {
@@ -691,30 +728,146 @@ body {
   box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3);
 }
 
-.cli-quick-commands {
-  display: flex;
-  gap: 0.75rem;
-  padding: 1.5rem 2rem;
-  background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
-  border-top: 1px solid #4a5568;
-  flex-wrap: wrap;
+.cli-commands-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.cli-quick-commands button {
-  background: linear-gradient(135deg, #4a5568 0%, #718096 100%);
-  color: white;
-  border: none;
+.cli-commands-section h4 {
+  margin: 0 0 1.5rem 0;
+  color: #2d3748;
+  font-size: 1.3rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.commands-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.command-category {
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  transition: all 0.3s ease;
+}
+
+.command-category:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.2);
+}
+
+.command-category h5 {
+  margin: 0 0 1rem 0;
+  color: #4a5568;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+  padding-bottom: 0.5rem;
+}
+
+.command-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.command-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.2);
   border-radius: 8px;
-  padding: 0.75rem 1.25rem;
-  font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-weight: 600;
+  text-align: left;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
 }
 
-.cli-quick-commands button:hover {
-  background: linear-gradient(135deg, #718096 0%, #a0aec0 100%);
-  transform: translateY(-1px);
+.command-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transition: left 0.5s ease;
+}
+
+.command-btn:hover::before {
+  left: 100%;
+}
+
+.command-btn:hover {
+  transform: translateX(5px);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+  border-color: rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.command-btn.primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: transparent;
+}
+
+.command-btn.primary:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  transform: translateX(5px) scale(1.02);
+}
+
+.command-btn.danger {
+  background: linear-gradient(135deg, rgba(229, 62, 62, 0.1) 0%, rgba(197, 48, 48, 0.1) 100%);
+  border-color: rgba(229, 62, 62, 0.3);
+}
+
+.command-btn.danger:hover {
+  background: linear-gradient(135deg, rgba(229, 62, 62, 0.15) 0%, rgba(197, 48, 48, 0.15) 100%);
+  border-color: rgba(229, 62, 62, 0.5);
+}
+
+.command-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+.command-name {
+  font-weight: 600;
+  color: #2d3748;
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+}
+
+.command-btn.primary .command-name {
+  color: white;
+}
+
+.command-desc {
+  color: #718096;
+  font-size: 0.85rem;
+  margin-left: auto;
+  text-align: right;
+  flex: 1;
+}
+
+.command-btn.primary .command-desc {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 /* Enhanced Dev Console Guide */
@@ -993,12 +1146,32 @@ kbd {
     gap: 1rem;
   }
   
+  .cli-prompt {
+    align-self: flex-start;
+  }
+  
   .cli-submit {
     margin-left: 0;
   }
   
-  .cli-quick-commands {
-    justify-content: center;
+  .commands-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .command-category {
+    padding: 1rem;
+  }
+  
+  .command-btn {
+    padding: 0.6rem 0.8rem;
+  }
+  
+  .command-name {
+    font-size: 0.9rem;
+  }
+  
+  .command-desc {
+    font-size: 0.8rem;
   }
   
   .command-item {
@@ -1057,7 +1230,23 @@ kbd {
     padding: 1rem 1.5rem;
   }
   
-  .cli-quick-commands {
-    padding: 1rem 1.5rem;
+  .cli-commands-section {
+    padding: 1rem;
+  }
+  
+  .command-category {
+    padding: 0.75rem;
+  }
+  
+  .command-btn {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .command-name {
+    font-size: 0.85rem;
+  }
+  
+  .command-desc {
+    font-size: 0.75rem;
   }
 }
