@@ -44,7 +44,11 @@ function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const API_BASE = "http://localhost:8080/api";
+  // Pagination state
+  const [currentPageNumber, setCurrentPageNumber] = useState(1);
+  const notesPerPage = 5;
+
+  const API_BASE = "/api";
 
   // Toast functions
   const addToast = (toast: Omit<ToastMessage, "id">) => {
@@ -132,35 +136,18 @@ function App() {
       });
     };
 
-    // Add note card parallax effect
-    const handleNoteCardParallax = () => {
-      const cards = document.querySelectorAll(".note-card");
-      cards.forEach((card) => {
-        const rect = card.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-
-        const deltaX = (mousePosition.x - centerX) * 0.02;
-        const deltaY = (mousePosition.y - centerY) * 0.02;
-
-        (
-          card as HTMLElement
-        ).style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-      });
-    };
+    // Note card parallax effect removed - was causing annoying movement
 
     window.addEventListener("mousemove", handleMouseMove);
 
     // Set up animation loops
     const particleInterval = setInterval(handleParticleInteraction, 50);
     const orbInterval = setInterval(handleGlowOrbTracking, 16);
-    const cardInterval = setInterval(handleNoteCardParallax, 16);
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       clearInterval(particleInterval);
       clearInterval(orbInterval);
-      clearInterval(cardInterval);
 
       // Clear error timeout on cleanup
       if (errorTimeout) {
@@ -168,6 +155,34 @@ function App() {
       }
     };
   }, [mousePosition]);
+
+  // Listen for CLI events
+  useEffect(() => {
+    const handleCLIToast = (event: CustomEvent) => {
+      const { type, title, message } = event.detail;
+      addToast({
+        type: type as "success" | "error" | "info" | "warning",
+        title,
+        message,
+        duration: 5000,
+      });
+    };
+
+    const handleCLIRefresh = () => {
+      fetchNotes();
+    };
+
+    window.addEventListener("gonotes-toast", handleCLIToast as EventListener);
+    window.addEventListener("gonotes-refresh", handleCLIRefresh);
+
+    return () => {
+      window.removeEventListener(
+        "gonotes-toast",
+        handleCLIToast as EventListener
+      );
+      window.removeEventListener("gonotes-refresh", handleCLIRefresh);
+    };
+  }, []);
 
   const fetchNotes = async (clearErrors = true) => {
     console.log(
@@ -547,17 +562,21 @@ function App() {
 
       // Refresh notes if the command might have changed them
       if (
-        ["list", "create", "delete", "search", "stats"].includes(actualCommand)
+        ["list", "create", "delete", "search", "stats", "tag"].includes(
+          actualCommand
+        )
       ) {
         await fetchNotes();
       }
 
-      // Only show toast for CRUD operations (create, update, delete)
-      if (["create", "delete", "update"].includes(actualCommand)) {
+      // Show toast for CRUD operations (create, update, delete, tag)
+      if (["create", "delete", "update", "tag"].includes(actualCommand)) {
         addToast({
           type: "success",
           title: "Note Modified",
-          message: `Successfully ${actualCommand}d note via CLI`,
+          message: `Successfully ${
+            actualCommand === "tag" ? "modified tags for" : actualCommand
+          }d note via CLI`,
           duration: 3000,
         });
       }
@@ -631,6 +650,35 @@ function App() {
     }
   };
 
+  // Pagination helper functions
+  const totalPages = Math.ceil(notes.length / notesPerPage);
+  const startIndex = (currentPageNumber - 1) * notesPerPage;
+  const endIndex = startIndex + notesPerPage;
+  const currentNotes = notes.slice(startIndex, endIndex);
+
+  const goToPage = (pageNumber: number) => {
+    if (pageNumber >= 1 && pageNumber <= totalPages) {
+      setCurrentPageNumber(pageNumber);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPageNumber > 1) {
+      setCurrentPageNumber(currentPageNumber - 1);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPageNumber < totalPages) {
+      setCurrentPageNumber(currentPageNumber + 1);
+    }
+  };
+
+  // Reset to first page when notes change
+  useEffect(() => {
+    setCurrentPageNumber(1);
+  }, [notes.length]);
+
   const renderNotesPage = () => (
     <div className="page-content">
       {error && (
@@ -640,129 +688,262 @@ function App() {
         </div>
       )}
 
-      <div className="controls">
-        <div className="search-section">
-          <div className="search-input-group">
-            <input
-              type="text"
-              placeholder="Search notes by title, content, or tags..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && searchNotes()}
-              className="search-input"
-            />
-            <div className="search-buttons">
-              <button
-                onClick={searchNotes}
-                className="search-button"
-                disabled={!searchQuery.trim()}
-              >
-                🔍 {isSearching ? "Search Again" : "Search"}
-              </button>
-              {searchQuery && (
-                <button
-                  onClick={() => {
-                    setSearchQuery("");
-                    setIsSearching(false);
-                    fetchNotes();
-                  }}
-                  className="clear-button"
-                >
-                  ✕ Clear
-                </button>
-              )}
-            </div>
+      <div className="book-container">
+        {/* Book Cover */}
+        <div className="book-cover">
+          <div className="book-title">
+            <h1>📚 GoNotes Journal</h1>
+            <p>Your Personal Knowledge Repository</p>
           </div>
-          {isSearching && searchQuery && (
-            <div className="search-info">
-              <small>Searching for: "{searchQuery}"</small>
-            </div>
-          )}
+          <div className="book-stats">
+            <span>📝 {notes.length} Notes</span>
+            <span>📄 {totalPages} Pages</span>
+          </div>
         </div>
 
-        <button
-          className="create-button"
-          onClick={() => setShowCreateForm(!showCreateForm)}
-        >
-          {showCreateForm ? "Cancel" : "+ New Note"}
-        </button>
-      </div>
-
-      {showCreateForm && (
-        <div className="create-form">
-          <h3>Create New Note</h3>
-          <input
-            type="text"
-            placeholder="Title"
-            value={newNote.title}
-            onChange={(e) =>
-              setNewNote((prev) => ({ ...prev, title: e.target.value }))
-            }
-          />
-          <textarea
-            placeholder="Content"
-            value={newNote.content}
-            onChange={(e) =>
-              setNewNote((prev) => ({ ...prev, content: e.target.value }))
-            }
-          />
-          <input
-            type="text"
-            placeholder="Tags (comma-separated)"
-            onChange={(e) => handleTagInput(e.target.value)}
-          />
-          <button onClick={createNote} disabled={!newNote.title.trim()}>
-            Create Note
-          </button>
-        </div>
-      )}
-
-      <div className="notes-grid">
-        {notes.map((note) => (
-          <div key={note.id} className="note-card" data-note-id={note.id}>
-            <div className="note-header">
-              <h3>{note.title}</h3>
-              <button
-                className="delete-button"
-                onClick={() => deleteNote(note.id)}
-                title="Delete note"
-              >
-                ✕
-              </button>
+        {/* Book Controls */}
+        <div className="book-controls">
+          <div className="search-section">
+            <div className="search-input-group">
+              <input
+                type="text"
+                placeholder="🔍 Search through your notes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && searchNotes()}
+                className="search-input"
+              />
+              <div className="search-buttons">
+                <button
+                  onClick={searchNotes}
+                  className="search-button"
+                  disabled={!searchQuery.trim()}
+                >
+                  🔍 {isSearching ? "Search Again" : "Search"}
+                </button>
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery("");
+                      setIsSearching(false);
+                      fetchNotes();
+                    }}
+                    className="clear-button"
+                  >
+                    ✕ Clear
+                  </button>
+                )}
+              </div>
             </div>
-            <p className="note-content">{note.content}</p>
-            {note.tags.length > 0 && (
-              <div className="note-tags">
-                {note.tags.map((tag, index) => (
-                  <span key={index} className="tag">
-                    #{tag}
-                  </span>
-                ))}
+            {isSearching && searchQuery && (
+              <div className="search-info">
+                <small>Searching for: "{searchQuery}"</small>
               </div>
             )}
-            <div className="note-meta">
-              <small>
-                Created: {new Date(note.created_at).toLocaleDateString()}
-              </small>
-              {note.updated_at !== note.created_at && (
-                <small>
-                  Updated: {new Date(note.updated_at).toLocaleDateString()}
-                </small>
-              )}
+          </div>
+
+          <button
+            className="create-button"
+            onClick={() => setShowCreateForm(!showCreateForm)}
+          >
+            {showCreateForm ? "✕ Cancel" : "✏️ New Entry"}
+          </button>
+        </div>
+
+        {/* Create Form */}
+        {showCreateForm && (
+          <div className="create-form">
+            <h3>✏️ Write New Entry</h3>
+            <input
+              type="text"
+              placeholder="Entry Title"
+              value={newNote.title}
+              onChange={(e) =>
+                setNewNote((prev) => ({ ...prev, title: e.target.value }))
+              }
+            />
+            <textarea
+              placeholder="Write your thoughts, ideas, or notes here..."
+              value={newNote.content}
+              onChange={(e) =>
+                setNewNote((prev) => ({ ...prev, content: e.target.value }))
+              }
+            />
+            <input
+              type="text"
+              placeholder="Tags (comma-separated)"
+              onChange={(e) => handleTagInput(e.target.value)}
+            />
+            <button onClick={createNote} disabled={!newNote.title.trim()}>
+              📖 Save Entry
+            </button>
+          </div>
+        )}
+
+        {/* Book Pages */}
+        {loading ? (
+          <div className="loading">📚 Loading your journal...</div>
+        ) : notes.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-book">
+              <h3>📚 Your Journal is Empty</h3>
+              <p>
+                {isSearching
+                  ? `No entries found matching "${searchQuery}". Try a different search term.`
+                  : "Start writing your first entry to begin your journey!"}
+              </p>
             </div>
           </div>
-        ))}
-      </div>
+        ) : (
+          <div className="book-pages">
+            {/* Page Header */}
+            <div className="page-header">
+              <div className="page-info">
+                <span className="page-number">
+                  Page {currentPageNumber} of {totalPages}
+                </span>
+                <span className="notes-count">
+                  Showing {currentNotes.length} of {notes.length} entries
+                </span>
+              </div>
+            </div>
 
-      {notes.length === 0 && !loading && (
-        <div className="empty-state">
-          <p>
-            {isSearching
-              ? `No notes found matching "${searchQuery}". Try a different search term.`
-              : "No notes found. Create your first note!"}
-          </p>
-        </div>
-      )}
+            {/* Notes as Book Pages */}
+            <div className="book-notes">
+              {currentNotes.map((note, index) => (
+                <div key={note.id} className="book-page">
+                  <div className="page-content">
+                    <div className="page-header-content">
+                      <h3 className="entry-title">{note.title}</h3>
+                      <button
+                        className="delete-button"
+                        onClick={() => deleteNote(note.id)}
+                        title="Delete entry"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                    <div className="entry-content">
+                      <p>{note.content}</p>
+                    </div>
+                    <div className="entry-tags">
+                      {note.tags.map((tag, tagIndex) => (
+                        <span key={tagIndex} className="tag">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="entry-meta">
+                      <div className="entry-dates">
+                        <small>
+                          📅 Created:{" "}
+                          {new Date(note.created_at).toLocaleDateString()}
+                        </small>
+                        <small>
+                          ✏️ Updated:{" "}
+                          {new Date(note.updated_at).toLocaleDateString()}
+                        </small>
+                      </div>
+                      <div className="entry-number">
+                        <small>Entry #{note.id}</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Magnificent Pagination */}
+            {totalPages > 1 && (
+              <div className="magnificent-pagination">
+                <div className="pagination-container">
+                  {/* Previous Button */}
+                  <button
+                    className="magnificent-prev-btn"
+                    onClick={goToPreviousPage}
+                    disabled={currentPageNumber === 1}
+                  >
+                    <div className="btn-content">
+                      <div className="btn-icon">◀</div>
+                      <div className="btn-text">
+                        <span className="btn-label">Previous</span>
+                        <span className="btn-subtitle">
+                          Page {currentPageNumber - 1 || 1}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="btn-glow"></div>
+                    <div className="btn-particles"></div>
+                  </button>
+
+                  {/* Page Numbers */}
+                  <div className="magnificent-page-numbers">
+                    <div className="page-numbers-container">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                        (pageNum) => (
+                          <button
+                            key={pageNum}
+                            className={`magnificent-page-btn ${
+                              pageNum === currentPageNumber ? "active" : ""
+                            }`}
+                            onClick={() => goToPage(pageNum)}
+                          >
+                            <span className="page-number-text">{pageNum}</span>
+                            <div className="page-btn-glow"></div>
+                            <div className="page-btn-particles"></div>
+                          </button>
+                        )
+                      )}
+                    </div>
+                    <div className="page-info-display">
+                      <span className="current-page-indicator">
+                        Page {currentPageNumber} of {totalPages}
+                      </span>
+                      <span className="total-entries">
+                        Showing {currentNotes.length} of {notes.length} entries
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Next Button */}
+                  <button
+                    className="magnificent-next-btn"
+                    onClick={goToNextPage}
+                    disabled={currentPageNumber === totalPages}
+                  >
+                    <div className="btn-content">
+                      <div className="btn-text">
+                        <span className="btn-label">Next</span>
+                        <span className="btn-subtitle">
+                          Page{" "}
+                          {currentPageNumber + 1 > totalPages
+                            ? totalPages
+                            : currentPageNumber + 1}
+                        </span>
+                      </div>
+                      <div className="btn-icon">▶</div>
+                    </div>
+                    <div className="btn-glow"></div>
+                    <div className="btn-particles"></div>
+                  </button>
+                </div>
+
+                {/* Pagination Decoration */}
+                <div className="pagination-decoration">
+                  <div className="decoration-line left"></div>
+                  <div className="decoration-orb">
+                    <div className="orb-core"></div>
+                    <div className="orb-ring ring-1"></div>
+                    <div className="orb-ring ring-2"></div>
+                    <div className="orb-ring ring-3"></div>
+                  </div>
+                  <div className="decoration-line right"></div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 

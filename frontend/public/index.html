@@ -49,6 +49,20 @@
     <script>
     // GoNotes CLI Console
     window.gonotes = {
+        // Helper function to show toast notifications
+        showToast(type, title, message) {
+            // Dispatch a custom event that the React app can listen to
+            window.dispatchEvent(new CustomEvent('gonotes-toast', {
+                detail: { type, title, message }
+            }));
+        },
+
+        // Helper function to refresh the notes list
+        refreshNotes() {
+            // Dispatch a custom event that the React app can listen to
+            window.dispatchEvent(new CustomEvent('gonotes-refresh'));
+        },
+
         async execute(command, ...args) {
             try {
                 const response = await fetch('/api/cli/execute', {
@@ -59,12 +73,21 @@
                 const result = await response.json();
                 if (result.error) {
                     console.error('Error:', result.error);
+                    this.showToast('error', 'CLI Error', result.error);
                     return result.error;
                 }
                 console.log('Result:', result.result);
+                
+                // Show success toast for data-modifying operations
+                if (['create', 'delete', 'update', 'tag'].includes(command)) {
+                    this.showToast('success', 'CLI Success', `${command} operation completed successfully`);
+                    this.refreshNotes();
+                }
+                
                 return result.result;
             } catch (error) {
                 console.error('CLI Error:', error);
+                this.showToast('error', 'CLI Error', error.message);
                 return error.message;
             }
         },

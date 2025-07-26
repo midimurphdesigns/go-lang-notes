@@ -1,0 +1,13 @@
+{
+  "id": 8,
+  "title": "Does it work?",
+  "content": "Lets see if it works...",
+  "tags": [
+    "tag1",
+    "tag2"
+  ],
+  "created_at": "2025-07-25T19:39:48.1837658-07:00",
+  "updated_at": "2025-07-25T19:39:48.1837658-07:00",
+  "is_archived": false,
+  "is_favorite": false
+}
