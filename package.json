@@ -1,0 +1,26 @@
+{
+  "name": "go-notes-fullstack",
+  "version": "1.0.0",
+  "description": "Full-stack note-taking application with Go backend and React frontend",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd backend && go run main.go",
+    "frontend": "cd frontend && npm start",
+    "build": "cd frontend && npm run build",
+    "install-deps": "npm install && cd frontend && npm install",
+    "backend-build": "cd backend && go build -o gonotes.exe main.go",
+    "start": "npm run dev"
+  },
+  "keywords": [
+    "go",
+    "react",
+    "notes",
+    "fullstack"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
