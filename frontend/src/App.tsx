@@ -611,6 +611,26 @@ function App() {
     }
   };
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      addToast({
+        type: "success",
+        title: "Copied!",
+        message: "Command copied to clipboard",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error("Failed to copy:", error);
+      addToast({
+        type: "error",
+        title: "Copy Failed",
+        message: "Failed to copy to clipboard",
+        duration: 3000,
+      });
+    }
+  };
+
   const renderNotesPage = () => (
     <div className="page-content">
       {error && (
@@ -982,40 +1002,129 @@ function App() {
           <h3>💻 Available Commands</h3>
           <div className="command-list">
             <div className="command-item">
-              <code>gonotes.help()</code>
-              <span>Show all available commands and examples</span>
+              <div className="command-content">
+                <code>gonotes.help()</code>
+                <span>Show all available commands and examples</span>
+              </div>
+              <button
+                className="copy-btn"
+                onClick={() => copyToClipboard("gonotes.help()")}
+                title="Copy command"
+              >
+                📋
+              </button>
             </div>
             <div className="command-item">
-              <code>gonotes.list()</code>
-              <span>List all notes</span>
+              <div className="command-content">
+                <code>gonotes.list()</code>
+                <span>List all notes</span>
+              </div>
+              <button
+                className="copy-btn"
+                onClick={() => copyToClipboard("gonotes.list()")}
+                title="Copy command"
+              >
+                📋
+              </button>
             </div>
             <div className="command-item">
-              <code>gonotes.create('Title', 'Content', 'tag1', 'tag2')</code>
-              <span>Create a new note</span>
+              <div className="command-content">
+                <code>gonotes.create('Title', 'Content', 'tag1', 'tag2')</code>
+                <span>Create a new note</span>
+              </div>
+              <button
+                className="copy-btn"
+                onClick={() =>
+                  copyToClipboard(
+                    "gonotes.create('Title', 'Content', 'tag1', 'tag2')"
+                  )
+                }
+                title="Copy command"
+              >
+                📋
+              </button>
             </div>
             <div className="command-item">
-              <code>gonotes.view(1)</code>
-              <span>View a specific note by ID</span>
+              <div className="command-content">
+                <code>gonotes.view(1)</code>
+                <span>View a specific note by ID</span>
+              </div>
+              <button
+                className="copy-btn"
+                onClick={() => copyToClipboard("gonotes.view(1)")}
+                title="Copy command"
+              >
+                📋
+              </button>
             </div>
             <div className="command-item">
-              <code>gonotes.delete(1)</code>
-              <span>Delete a note by ID</span>
+              <div className="command-content">
+                <code>gonotes.delete(1)</code>
+                <span>Delete a note by ID</span>
+              </div>
+              <button
+                className="copy-btn"
+                onClick={() => copyToClipboard("gonotes.delete(1)")}
+                title="Copy command"
+              >
+                📋
+              </button>
             </div>
             <div className="command-item">
-              <code>gonotes.search('query')</code>
-              <span>Search notes by content or title</span>
+              <div className="command-content">
+                <code>gonotes.search('query')</code>
+                <span>Search notes by content or title</span>
+              </div>
+              <button
+                className="copy-btn"
+                onClick={() => copyToClipboard("gonotes.search('query')")}
+                title="Copy command"
+              >
+                📋
+              </button>
             </div>
             <div className="command-item">
-              <code>gonotes.stats()</code>
-              <span>Get note statistics</span>
+              <div className="command-content">
+                <code>gonotes.stats()</code>
+                <span>Get note statistics</span>
+              </div>
+              <button
+                className="copy-btn"
+                onClick={() => copyToClipboard("gonotes.stats()")}
+                title="Copy command"
+              >
+                📋
+              </button>
             </div>
             <div className="command-item">
-              <code>gonotes.tag('add', 1, 'important')</code>
-              <span>Add a tag to a note</span>
+              <div className="command-content">
+                <code>gonotes.tag('add', 1, 'important')</code>
+                <span>Add a tag to a note</span>
+              </div>
+              <button
+                className="copy-btn"
+                onClick={() =>
+                  copyToClipboard("gonotes.tag('add', 1, 'important')")
+                }
+                title="Copy command"
+              >
+                📋
+              </button>
             </div>
             <div className="command-item">
-              <code>gonotes.tag('remove', 1, 'old')</code>
-              <span>Remove a tag from a note</span>
+              <div className="command-content">
+                <code>gonotes.tag('remove', 1, 'old')</code>
+                <span>Remove a tag from a note</span>
+              </div>
+              <button
+                className="copy-btn"
+                onClick={() =>
+                  copyToClipboard("gonotes.tag('remove', 1, 'old')")
+                }
+                title="Copy command"
+              >
+                📋
+              </button>
             </div>
           </div>
         </div>
@@ -1025,22 +1134,64 @@ function App() {
           <div className="examples">
             <div className="example-item">
               <h4>Create a Meeting Note:</h4>
-              <code>
-                gonotes.create('Team Meeting', 'Discuss Q4 goals and project
-                timeline', 'work', 'meeting', 'important')
-              </code>
+              <div className="example-content">
+                <code>
+                  gonotes.create('Team Meeting', 'Discuss Q4 goals and project
+                  timeline', 'work', 'meeting', 'important')
+                </code>
+                <button
+                  className="copy-btn"
+                  onClick={() =>
+                    copyToClipboard(
+                      "gonotes.create('Team Meeting', 'Discuss Q4 goals and project timeline', 'work', 'meeting', 'important')"
+                    )
+                  }
+                  title="Copy example"
+                >
+                  📋
+                </button>
+              </div>
             </div>
             <div className="example-item">
               <h4>Search for Work Notes:</h4>
-              <code>gonotes.search('work')</code>
+              <div className="example-content">
+                <code>gonotes.search('work')</code>
+                <button
+                  className="copy-btn"
+                  onClick={() => copyToClipboard("gonotes.search('work')")}
+                  title="Copy example"
+                >
+                  📋
+                </button>
+              </div>
             </div>
             <div className="example-item">
               <h4>Get Statistics:</h4>
-              <code>gonotes.stats()</code>
+              <div className="example-content">
+                <code>gonotes.stats()</code>
+                <button
+                  className="copy-btn"
+                  onClick={() => copyToClipboard("gonotes.stats()")}
+                  title="Copy example"
+                >
+                  📋
+                </button>
+              </div>
             </div>
             <div className="example-item">
               <h4>Add a Tag to Note #1:</h4>
-              <code>gonotes.tag('add', 1, 'urgent')</code>
+              <div className="example-content">
+                <code>gonotes.tag('add', 1, 'urgent')</code>
+                <button
+                  className="copy-btn"
+                  onClick={() =>
+                    copyToClipboard("gonotes.tag('add', 1, 'urgent')")
+                  }
+                  title="Copy example"
+                >
+                  📋
+                </button>
+              </div>
             </div>
           </div>
         </div>

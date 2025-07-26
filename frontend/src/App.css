@@ -1063,10 +1063,46 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+.command-content {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex: 1;
+}
+
 .command-item span {
   color: #4a5568;
   font-size: 1rem;
   font-weight: 500;
+}
+
+.copy-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  min-width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.copy-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+}
+
+.copy-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .examples {
@@ -1095,9 +1131,16 @@ body {
   font-weight: 700;
 }
 
+.example-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .example-item code {
   background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
   color: #e2e8f0;
+  flex: 1;
   padding: 1rem 1.25rem;
   border-radius: 8px;
   font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
